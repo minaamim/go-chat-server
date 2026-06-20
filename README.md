@@ -82,6 +82,6 @@ This project was created to better understand:
 * Graceful shutdown
 * Authentication
 
-License
+### License
 
 MIT
