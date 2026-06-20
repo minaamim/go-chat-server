@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Go Chat Test</title>
+</head>
+<body>
+
+<button id="connect">Connect</button>
+<input id="message" />
+<button id="send">Send</button>
+
+<script>
+    let socket;
+
+    document.getElementById("connect").onclick = () => {
+        socket = new WebSocket("ws://localhost:8080/ws");
+
+        socket.onopen = () => {
+            console.log("connected");
+        };
+
+        socket.onmessage = (event) => {
+            console.log("received:", event.data);
+        };
+
+        socket.onclose = () => {
+            console.log("disconnected");
+        };
+    };
+
+    document.getElementById("send").onclick = () => {
+        socket.send(
+            document.getElementById("message").value
+        );
+    };
+</script>
+
+</body>
+</html>
