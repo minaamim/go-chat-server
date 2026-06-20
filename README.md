@@ -28,7 +28,7 @@ go-chat-server/
 ├── internal/
 │   ├── chat/
 │   └── http/
-│       ├── router.go
+│       ├── server/
 │       └── handler/
 ├── web/
 ├── go.mod
