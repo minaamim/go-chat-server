@@ -1,38 +1,45 @@
 <!DOCTYPE html>
-<html>
+<html lang="">
 <head>
     <title>Go Chat Test</title>
 </head>
 <body>
 
+<label for="name"></label><input id="name" type="text" placeholder="name">
 <label for="message"></label><input id="message" type="text">
 <button id="send">Send</button>
 
 <script>
-    const socket = new WebSocket("ws://localhost:8080/ws");
+    const name = document.getElementById("name");
+    const message = document.getElementById("message");
 
-    socket.onopen = () => {
-        console.log("connected");
-    };
+    let socket;
 
-    socket.onmessage = (event) => {
-        console.log("received:", event.data);
-    };
+    name.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter") return;
 
-    socket.onerror = (error) => {
-        console.log("error:", error);
-    };
+        const value = name.value.trim();
+        if (!value) return;
 
-    socket.onclose = () => {
-        console.log("closed");
-    };
+        if (socket?.readyState === WebSocket.OPEN) return;
+
+        socket = new WebSocket(
+            `ws://localhost:8080/ws?name=${encodeURIComponent(value)}`
+        );
+
+        socket.onmessage = (event) => {
+            const message = JSON.parse(event.data);
+            console.log(`${message.name}: ${message.content}`);
+        };
+
+        name.disabled = true;
+    });
 
     document.getElementById("send").onclick = () => {
-        const input = document.getElementById("message");
+        if (!socket || socket.readyState !== WebSocket.OPEN) return;
 
-        socket.send(input.value);
-
-        input.value = "";
+        socket.send(message.value);
+        message.value = "";
     };
 </script>
 

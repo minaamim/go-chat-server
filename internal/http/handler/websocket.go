@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gorilla/websocket"
 	"github.com/minaamim/go-chat-server/internal/chat"
@@ -22,7 +23,11 @@ func WebSocket(hub *chat.Hub) http.HandlerFunc {
 		}
 		defer conn.Close()
 
-		client := chat.NewClient(hub, conn)
+		name := strings.TrimSpace(r.URL.Query().Get("name"))
+		if name == "" {
+			name = "noname"
+		}
+		client := chat.NewClient(hub, conn, name)
 
 		hub.Register(client)
 
@@ -34,7 +39,7 @@ func WebSocket(hub *chat.Hub) http.HandlerFunc {
 				hub.Unregister(client)
 				break
 			}
-			hub.Broadcast(msg)
+			hub.Broadcast(client, msg)
 		}
 	}
 }

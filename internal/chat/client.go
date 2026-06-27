@@ -10,13 +10,15 @@ type Client struct {
 	conn *websocket.Conn
 	// 사용자에게 보낼 메세지 리스트
 	send chan []byte
+	name string
 }
 
-func NewClient(hub *Hub, conn *websocket.Conn) *Client {
+func NewClient(hub *Hub, conn *websocket.Conn, name string) *Client {
 	return &Client{
 		hub:  hub,
 		conn: conn,
 		send: make(chan []byte, sendBufferSize),
+		name: name,
 	}
 }
 
