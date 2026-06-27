@@ -21,7 +21,6 @@ func WebSocket(hub *chat.Hub) http.HandlerFunc {
 		if err != nil {
 			return
 		}
-		defer conn.Close()
 
 		name := strings.TrimSpace(r.URL.Query().Get("name"))
 		if name == "" {
@@ -32,14 +31,6 @@ func WebSocket(hub *chat.Hub) http.HandlerFunc {
 		hub.Register(client)
 
 		go client.WritePump()
-
-		for {
-			_, msg, err := conn.ReadMessage()
-			if err != nil {
-				hub.Unregister(client)
-				break
-			}
-			hub.Broadcast(client, msg)
-		}
+		client.ReadPump()
 	}
 }

@@ -39,3 +39,19 @@ func (c *Client) WritePump() {
 		}
 	}
 }
+
+func (c *Client) ReadPump() {
+	defer func() {
+		c.hub.Unregister(c)
+		_ = c.conn.Close()
+	}()
+
+	for {
+		_, msg, err := c.conn.ReadMessage()
+		if err != nil {
+			break
+		}
+
+		c.hub.Broadcast(c, msg)
+	}
+}
