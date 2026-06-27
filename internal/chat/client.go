@@ -2,22 +2,32 @@ package chat
 
 import "github.com/gorilla/websocket"
 
+const sendBufferSize = 256
+
 type Client struct {
-	Hub *Hub
+	hub *Hub
 	// 브라우저와 연결된 실제 Websocket 연결
-	Conn *websocket.Conn
+	conn *websocket.Conn
 	// 사용자에게 보낼 메세지 리스트
-	Send chan []byte
+	send chan []byte
+}
+
+func NewClient(hub *Hub, conn *websocket.Conn) *Client {
+	return &Client{
+		hub:  hub,
+		conn: conn,
+		send: make(chan []byte, sendBufferSize),
+	}
 }
 
 func (c *Client) WritePump() {
 	defer func() {
-		c.Hub.Unregister <- c
-		_ = c.Conn.Close()
+		c.hub.Unregister(c)
+		_ = c.conn.Close()
 	}()
 
-	for message := range c.Send {
-		err := c.Conn.WriteMessage(
+	for message := range c.send {
+		err := c.conn.WriteMessage(
 			websocket.TextMessage,
 			message,
 		)

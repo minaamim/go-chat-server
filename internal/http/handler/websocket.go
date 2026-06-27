@@ -22,23 +22,19 @@ func WebSocket(hub *chat.Hub) http.HandlerFunc {
 		}
 		defer conn.Close()
 
-		client := &chat.Client{
-			Hub:  hub,
-			Conn: conn,
-			Send: make(chan []byte, 256),
-		}
+		client := chat.NewClient(hub, conn)
 
-		hub.Register <- client
+		hub.Register(client)
 
 		go client.WritePump()
 
 		for {
 			_, msg, err := conn.ReadMessage()
 			if err != nil {
-				hub.Unregister <- client
+				hub.Unregister(client)
 				break
 			}
-			hub.Broadcast <- msg
+			hub.Broadcast(msg)
 		}
 	}
 }

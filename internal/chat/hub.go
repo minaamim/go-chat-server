@@ -3,48 +3,60 @@ package chat
 import "log"
 
 type Hub struct {
-	Clients map[*Client]bool
+	clients map[*Client]bool
 
 	// 새로운 사용자가 접속했을 때 사용하는 채널
-	Register chan *Client
+	register chan *Client
 	// 사용자가 연결을 끊었을 때 사용하는 채널
-	Unregister chan *Client
+	unregister chan *Client
 	// 채팅 메세지를 모든 사용자에게 전달하기 위한 채널
-	Broadcast chan []byte
+	broadcast chan []byte
 }
 
 func NewHub() *Hub {
 	return &Hub{
-		Clients:    make(map[*Client]bool),
-		Register:   make(chan *Client),
-		Unregister: make(chan *Client),
-		Broadcast:  make(chan []byte),
+		clients:    make(map[*Client]bool),
+		register:   make(chan *Client),
+		unregister: make(chan *Client),
+		broadcast:  make(chan []byte),
 	}
+}
+
+func (h *Hub) Register(client *Client) {
+	h.register <- client
+}
+
+func (h *Hub) Unregister(client *Client) {
+	h.unregister <- client
+}
+
+func (h *Hub) Broadcast(message []byte) {
+	h.broadcast <- message
 }
 
 func (h *Hub) Run() {
 	for {
 		select {
-		case client := <-h.Register:
-			h.Clients[client] = true
-			log.Printf("client registered, total=%d", len(h.Clients))
+		case client := <-h.register:
+			h.clients[client] = true
+			log.Printf("client registered, total=%d", len(h.clients))
 
-		case client := <-h.Unregister:
-			if _, ok := h.Clients[client]; ok {
-				delete(h.Clients, client)
-				close(client.Send)
-				log.Printf("client unregistered, total=%d", len(h.Clients))
+		case client := <-h.unregister:
+			if _, ok := h.clients[client]; ok {
+				delete(h.clients, client)
+				close(client.send)
+				log.Printf("client unregistered, total=%d", len(h.clients))
 			}
 
-		case message := <-h.Broadcast:
-			log.Printf("broadcasting: %s to %d clients", message, len(h.Clients))
+		case message := <-h.broadcast:
+			log.Printf("broadcasting: %s to %d clients", message, len(h.clients))
 
-			for client := range h.Clients {
+			for client := range h.clients {
 				select {
-				case client.Send <- message:
+				case client.send <- message:
 				default:
-					close(client.Send)
-					delete(h.Clients, client)
+					close(client.send)
+					delete(h.clients, client)
 				}
 			}
 		}
