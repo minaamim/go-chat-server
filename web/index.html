@@ -5,33 +5,34 @@
 </head>
 <body>
 
-<button id="connect">Connect</button>
-<input id="message" />
+<label for="message"></label><input id="message" type="text">
 <button id="send">Send</button>
 
 <script>
-    let socket;
+    const socket = new WebSocket("ws://localhost:8080/ws");
 
-    document.getElementById("connect").onclick = () => {
-        socket = new WebSocket("ws://localhost:8080/ws");
+    socket.onopen = () => {
+        console.log("connected");
+    };
 
-        socket.onopen = () => {
-            console.log("connected");
-        };
+    socket.onmessage = (event) => {
+        console.log("received:", event.data);
+    };
 
-        socket.onmessage = (event) => {
-            console.log("received:", event.data);
-        };
+    socket.onerror = (error) => {
+        console.log("error:", error);
+    };
 
-        socket.onclose = () => {
-            console.log("disconnected");
-        };
+    socket.onclose = () => {
+        console.log("closed");
     };
 
     document.getElementById("send").onclick = () => {
-        socket.send(
-            document.getElementById("message").value
-        );
+        const input = document.getElementById("message");
+
+        socket.send(input.value);
+
+        input.value = "";
     };
 </script>
 

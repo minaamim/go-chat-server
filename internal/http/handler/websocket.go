@@ -1,10 +1,10 @@
 package handler
 
 import (
-	"log"
 	"net/http"
 
 	"github.com/gorilla/websocket"
+	"github.com/minaamim/go-chat-server/internal/chat"
 )
 
 var upgrader = websocket.Upgrader{
@@ -13,21 +13,32 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-func WebSocket(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
+func WebSocket(hub *chat.Hub) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 
-	if err != nil {
-		log.Println(err)
-		return
-	}
-	defer conn.Close()
-	log.Println("client connected")
-	for {
-		_, msg, err := conn.ReadMessage()
+		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
-			log.Println("client disconnected")
-			break
+			return
 		}
-		log.Printf("received: %s\n", msg)
+		defer conn.Close()
+
+		client := &chat.Client{
+			Hub:  hub,
+			Conn: conn,
+			Send: make(chan []byte, 256),
+		}
+
+		hub.Register <- client
+
+		go client.WritePump()
+
+		for {
+			_, msg, err := conn.ReadMessage()
+			if err != nil {
+				hub.Unregister <- client
+				break
+			}
+			hub.Broadcast <- msg
+		}
 	}
 }
