@@ -21,7 +21,10 @@
         const value = name.value.trim();
         if (!value) return;
 
-        if (socket?.readyState === WebSocket.OPEN) return;
+        if (
+            socket?.readyState === WebSocket.CONNECTING ||
+            socket?.readyState === WebSocket.OPEN
+        ) return;
 
         socket = new WebSocket(
             `ws://localhost:8080/ws?name=${encodeURIComponent(value)}`
@@ -29,6 +32,12 @@
 
         socket.onmessage = (event) => {
             const message = JSON.parse(event.data);
+
+            if (message.type === "system") {
+                console.log(`[system] ${message.content}`);
+                return;
+            }
+
             console.log(`${message.name}: ${message.content}`);
         };
 

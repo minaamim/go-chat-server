@@ -47,22 +47,48 @@ func (h *Hub) Broadcast(sender *Client, content []byte) {
 	}
 }
 
+func (h *Hub) broadcastPayload(payload []byte) {
+	for client := range h.clients {
+		select {
+		case client.send <- payload:
+		default:
+			close(client.send)
+			delete(h.clients, client)
+		}
+	}
+}
+
+func (h *Hub) broadcastSystem(content string) {
+	payload, err := json.Marshal(Message{
+		Type:    "system",
+		Content: content,
+	})
+	if err != nil {
+		return
+	}
+
+	h.broadcastPayload(payload)
+}
+
 func (h *Hub) Run() {
 	for {
 		select {
 		case client := <-h.register:
 			h.clients[client] = true
 			log.Printf("client %s registered, total=%d", client.name, len(h.clients))
+			h.broadcastSystem(client.name + " joined")
 
 		case client := <-h.unregister:
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
 				close(client.send)
 				log.Printf("client %s unregistered, total=%d", client.name, len(h.clients))
+				h.broadcastSystem(client.name + " left")
 			}
 
 		case message := <-h.broadcast:
 			payload, err := json.Marshal(Message{
+				Type:    "chat",
 				Name:    message.sender.name,
 				Content: string(message.content),
 			})
@@ -72,14 +98,7 @@ func (h *Hub) Run() {
 
 			log.Printf("broadcasting: %s to %d clients", message.sender.name, len(h.clients))
 
-			for client := range h.clients {
-				select {
-				case client.send <- payload:
-				default:
-					close(client.send)
-					delete(h.clients, client)
-				}
-			}
+			h.broadcastPayload(payload)
 		}
 	}
 }
