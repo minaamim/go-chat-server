@@ -28,7 +28,10 @@ func WebSocket(hub *chat.Hub) http.HandlerFunc {
 		}
 		client := chat.NewClient(hub, conn, name)
 
-		hub.Register(client)
+		if !hub.Register(client) {
+			_ = conn.Close()
+			return
+		}
 
 		go client.WritePump()
 		client.ReadPump()

@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 )
@@ -15,6 +16,8 @@ type (
 		unregister chan *Client
 		// 채팅 메세지를 모든 사용자에게 전달하기 위한 채널
 		broadcast chan broadcastMessage
+		// Hub goroutine이 완전히 종료됐음을 알리는 채널
+		done chan struct{}
 	}
 
 	broadcastMessage struct {
@@ -29,22 +32,38 @@ func NewHub() *Hub {
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
 		broadcast:  make(chan broadcastMessage),
+		done:       make(chan struct{}),
 	}
 }
 
-func (h *Hub) Register(client *Client) {
-	h.register <- client
+func (h *Hub) Register(client *Client) bool {
+	select {
+	case h.register <- client:
+		return true
+	case <-h.done:
+		return false
+	}
 }
 
 func (h *Hub) Unregister(client *Client) {
-	h.unregister <- client
+	select {
+	case h.unregister <- client:
+	case <-h.done:
+	}
 }
 
 func (h *Hub) Broadcast(sender *Client, content []byte) {
-	h.broadcast <- broadcastMessage{
+	select {
+	case h.broadcast <- broadcastMessage{
 		sender:  sender,
 		content: content,
+	}:
+	case <-h.done:
 	}
+}
+
+func (h *Hub) Done() <-chan struct{} {
+	return h.done
 }
 
 func (h *Hub) broadcastPayload(payload []byte) {
@@ -70,9 +89,18 @@ func (h *Hub) broadcastSystem(content string) {
 	h.broadcastPayload(payload)
 }
 
-func (h *Hub) Run() {
+func (h *Hub) Run(ctx context.Context) {
+	defer close(h.done)
+
 	for {
 		select {
+		case <-ctx.Done():
+			for client := range h.clients {
+				close(client.send)
+				delete(h.clients, client)
+			}
+			return
+
 		case client := <-h.register:
 			h.clients[client] = true
 			log.Printf("client %s registered, total=%d", client.name, len(h.clients))

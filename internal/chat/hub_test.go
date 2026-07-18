@@ -1,14 +1,14 @@
 package chat
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
 )
 
 func TestHubBroadcastsChatMessagesWithSenderName(t *testing.T) {
-	hub := NewHub()
-	go hub.Run()
+	hub := startTestHub(t)
 
 	alice := NewClient(hub, nil, "alice")
 	bob := NewClient(hub, nil, "bob")
@@ -41,8 +41,7 @@ func TestHubBroadcastsChatMessagesWithSenderName(t *testing.T) {
 }
 
 func TestHubBroadcastsLeaveMessagesToRemainingClients(t *testing.T) {
-	hub := NewHub()
-	go hub.Run()
+	hub := startTestHub(t)
 
 	alice := NewClient(hub, nil, "alice")
 	bob := NewClient(hub, nil, "bob")
@@ -91,6 +90,82 @@ func TestMessageJSONFields(t *testing.T) {
 	const want = `{"type":"chat","name":"alice","content":"hello"}`
 	if string(payload) != want {
 		t.Fatalf("message json = %s, want %s", payload, want)
+	}
+}
+
+func TestHubStopsWhenContextCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	hub := NewHub()
+	go hub.Run(ctx)
+
+	client := NewClient(hub, nil, "alice")
+	if !hub.Register(client) {
+		t.Fatal("expected registration to succeed before shutdown")
+	}
+	receiveMessage(t, client)
+
+	cancel()
+	waitForHub(t, hub)
+
+	select {
+	case _, ok := <-client.send:
+		if ok {
+			t.Fatal("expected client send channel to be closed")
+		}
+	default:
+		t.Fatal("expected client send channel to be closed")
+	}
+}
+
+func TestHubMethodsReturnAfterShutdown(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	hub := NewHub()
+	go hub.Run(ctx)
+
+	cancel()
+	waitForHub(t, hub)
+
+	client := NewClient(hub, nil, "alice")
+	if hub.Register(client) {
+		t.Fatal("expected registration to be rejected after shutdown")
+	}
+
+	returned := make(chan struct{})
+	go func() {
+		hub.Broadcast(client, []byte("hello"))
+		hub.Unregister(client)
+		close(returned)
+	}()
+
+	select {
+	case <-returned:
+	case <-time.After(time.Second):
+		t.Fatal("hub methods blocked after shutdown")
+	}
+}
+
+func startTestHub(t *testing.T) *Hub {
+	t.Helper()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	hub := NewHub()
+	go hub.Run(ctx)
+
+	t.Cleanup(func() {
+		cancel()
+		waitForHub(t, hub)
+	})
+
+	return hub
+}
+
+func waitForHub(t *testing.T, hub *Hub) {
+	t.Helper()
+
+	select {
+	case <-hub.Done():
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for hub to stop")
 	}
 }
 
